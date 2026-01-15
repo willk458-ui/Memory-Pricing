@@ -52,7 +52,7 @@ jobs:
           today_str = datetime.now().strftime("%B %d, %Y")
           prompt = f"""
           Today's Date is {today_str}. You are a senior semiconductor analyst. 
-          Use Google Search to find the LATEST pricing data from DRAMeXchange (TrendForce).
+          Use Google Search to find the LATEST pricing data from DRAMeXchange (TrendForce). Please also include percentage changes in pricing, noting either week-on-week or quarter-on-quarter changes.
           
           Requirements:
           1. DRAM & NAND Spot Prices (Session Avg): 

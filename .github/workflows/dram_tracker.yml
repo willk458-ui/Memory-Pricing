@@ -34,8 +34,14 @@ jobs:
           from email.message import EmailMessage
           from datetime import datetime
 
+          api_key_from_env = os.environ.get("GEMINI_API_KEY")
+
+          if not api_key_from_env:
+              print("CRITICAL ERROR: GEMINI_API_KEY environment variable is empty or missing.")
+              exit(1)
+
           # 1. Setup Gemini with Search Grounding
-          client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+          client = genai.Client(api_key=api_key_from_env)
           
           # Dynamic search-based prompt
           today_str = datetime.now().strftime("%B %d, %Y")

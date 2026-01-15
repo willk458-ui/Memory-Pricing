@@ -1,0 +1,87 @@
+name: Live DRAM & NAND Market Tracker
+on:
+  schedule:
+    - cron: '0 13 * * 1' # Runs every Monday at 1:00 PM UTC
+  workflow_dispatch:      # Allows you to manually trigger it for testing
+
+jobs:
+  run-intel-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies
+        run: pip install -U google-genai
+
+      - name: Fetch Live Data and Email Report
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
+          RECIPIENT_EMAIL: "william.kerwin@morningstar.com"
+        run: |
+          python - <<EOF
+          import os
+          from google import genai
+          from google.genai import types
+          import smtplib
+          from email.message import EmailMessage
+          from datetime import datetime
+
+          # 1. Setup Gemini with Search Grounding
+          client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+          
+          # Dynamic search-based prompt
+          today_str = datetime.now().strftime("%B %d, %Y")
+          prompt = f"""
+          Today's Date is {today_str}. You are a senior semiconductor analyst. 
+          Use Google Search to find the LATEST pricing data from DRAMeXchange (TrendForce).
+          
+          Requirements:
+          1. DRAM & NAND Spot Prices (Session Avg): 
+             - DDR5 16Gb (4800/5600), DDR4 16Gb (3200), DDR4 8Gb (3200), 512Gb TLC.
+          2. Contract Price Forecast (Q1 2026): 
+             - DDR5/DDR4 (Conventional DRAM), Server DRAM, NAND Flash (Blended), Enterprise SSD.
+          3. Market Dynamics: 
+             - Provide 3 insights on HBM capacity impact, supplier inventory, and overall supply and demand.
+          
+          Format the report as a professional, bulleted email. Use bolding for prices and percentage changes.
+          If specific today-only data isn't available, use the most recent session data from this week.
+          """
+
+          try:
+              # Call Gemini 2.5 with the search tool enabled
+              response = client.models.generate_content(
+                  model="gemini-2.5-flash",
+                  contents=prompt,
+                  config=types.GenerateContentConfig(
+                      tools=[types.Tool(google_search=types.GoogleSearch())]
+                  )
+              )
+              
+              report_body = response.text
+
+              # 2. Create Email Message
+              msg = EmailMessage()
+              msg.set_content(report_body)
+              msg['Subject'] = f'DRAMeXchange Intelligence Report: {today_str}'
+              msg['From'] = os.environ["EMAIL_USER"]
+              msg['To'] = os.environ["RECIPIENT_EMAIL"]
+
+              # 3. Send via SMTP
+              with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
+                  smtp.login(os.environ["EMAIL_USER"], os.environ["EMAIL_PASS"])
+                  smtp.send_message(msg)
+              
+              print(f"SUCCESS: Report for {today_str} sent to {os.environ['RECIPIENT_EMAIL']}")
+
+          except Exception as e:
+              print(f"CRITICAL ERROR: {e}")
+              exit(1)
+          EOF

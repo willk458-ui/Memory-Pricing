@@ -47,6 +47,7 @@ jobs:
           
           # Dynamic search-based prompt
           today_str = datetime.now().strftime("%B %d, %Y")
+          full_text = ""
           prompt = f"""
           Today's Date is {today_str}. You are a senior semiconductor analyst. 
           Use Google Search to find the LATEST pricing data from DRAMeXchange (TrendForce).

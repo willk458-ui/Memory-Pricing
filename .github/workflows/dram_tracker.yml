@@ -7,6 +7,8 @@ on:
 jobs:
   run-intel-report:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -52,13 +54,14 @@ jobs:
           Requirements:
           1. DRAM & NAND Spot Prices (Session Avg): 
              - DDR5 16Gb (4800/5600), DDR4 16Gb (3200), DDR4 8Gb (3200), 512Gb TLC.
-          2. Contract Price Forecast (Q1 2026): 
+          2. Contract Price Forecast: 
              - DDR5/DDR4 (Conventional DRAM), Server DRAM, NAND Flash (Blended), Enterprise SSD.
           3. Market Dynamics: 
              - Provide 3 insights on HBM capacity impact, supplier inventory, and overall supply and demand.
-          
-          Format the report as a professional, bulleted email. Use bolding for prices and percentage changes.
+          4. Format the report as a professional, bulleted email. Use bolding for prices and percentage changes.
           If specific today-only data isn't available, use the most recent session data from this week.
+          5. At the VERY END of your response, provide a single line of JSON with the prices:
+          JSON_DATA: {{"date": "{today_str}", "ddr5_16gb": 0.00, "ddr4_16gb": 0.00, "ddr4_8gb": 0.00, "512gb_tlc": 0.00}}
           """
 
           try:
@@ -73,14 +76,28 @@ jobs:
               
               report_body = response.text
 
-              # 2. Create Email Message
+              # Split report from JSON data
+              report_body = full_text.split("JSON_DATA:")[0]
+              json_str = full_text.split("JSON_DATA:")[1].strip()
+              data_row = json.loads(json_str)
+
+              # Save to CSV
+              csv_file = 'dram_prices.csv'
+              file_exists = os.path.isfile(csv_file)
+              with open(csv_file, 'a', newline='') as f:
+                  writer = csv.DictWriter(f, fieldnames=data_row.keys())
+                  if not file_exists:
+                      writer.writeheader()
+                  writer.writerow(data_row)
+
+              # Create Email Message
               msg = EmailMessage()
               msg.set_content(report_body)
               msg['Subject'] = f'DRAMeXchange Intelligence Report: {today_str}'
               msg['From'] = os.environ["EMAIL_USER"]
               msg['To'] = os.environ["RECIPIENT_EMAIL"]
 
-              # 3. Send via SMTP
+              # Send via SMTP
               with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
                   smtp.login(os.environ["EMAIL_USER"], os.environ["EMAIL_PASS"])
                   smtp.send_message(msg)
@@ -91,3 +108,10 @@ jobs:
               print(f"CRITICAL ERROR: {e}")
               exit(1)
           EOF
+        name: Commit and Push CSV changes
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add dram_prices.csv
+          git commit -m "Update historical DRAM prices for $(date +'%Y-%m-%d')" || echo "No changes to commit"
+          git push

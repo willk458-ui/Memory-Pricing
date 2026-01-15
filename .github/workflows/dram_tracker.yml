@@ -47,7 +47,6 @@ jobs:
           
           # Dynamic search-based prompt
           today_str = datetime.now().strftime("%B %d, %Y")
-          full_text = ""
           prompt = f"""
           Today's Date is {today_str}. You are a senior semiconductor analyst. 
           Use Google Search to find the LATEST pricing data from DRAMeXchange (TrendForce).
@@ -61,8 +60,10 @@ jobs:
              - Provide 3 insights on HBM capacity impact, supplier inventory, and overall supply and demand.
           4. Format the report as a professional, bulleted email. Use bolding for prices and percentage changes.
           If specific today-only data isn't available, use the most recent session data from this week.
-          5. At the VERY END of your response, provide a single line of JSON with the prices:
-          JSON_DATA: {{"date": "{today_str}", "ddr5_16gb": 0.00, "ddr4_16gb": 0.00, "ddr4_8gb": 0.00, "512gb_tlc": 0.00}}
+          5. MANDATORY: You must include a raw data block at the end. Use this exact syntax:
+             DATA_START
+             {{"date": "{today_str}", "ddr5_16gb": 0.00, "ddr4_16gb": 0.00, "ddr4_8gb": 0.00, "mlc_64gb": 0.00}}
+             DATA_END
           """
 
           try:
@@ -75,21 +76,32 @@ jobs:
                   )
               )
               
-              report_body = response.text
+              full_text = response.text
 
-              # Split report from JSON data
-              report_body = full_text.split("JSON_DATA:")[0]
-              json_str = full_text.split("JSON_DATA:")[1].strip()
-              data_row = json.loads(json_str)
+              # Robust Extraction Logic
+              report_body = full_text
+              data_row = None
+
+              # Try to find data between markers
+              match = re.search(r'DATA_START\s*(.*?)\s*DATA_END', full_text, re.DOTALL)
+              if match:
+                  try:
+                      json_str = match.group(1).strip()
+                      data_row = json.loads(json_str)
+                      report_body = full_text.split("DATA_START")[0].strip()
+                  except Exception as e:
+                      print(f"JSON Parse Error: {e}")
 
               # Save to CSV
-              csv_file = 'dram_prices.csv'
-              file_exists = os.path.isfile(csv_file)
-              with open(csv_file, 'a', newline='') as f:
+              if data_row:
+                csv_file = 'dram_prices.csv'
+                file_exists = os.path.isfile(csv_file)
+                with open(csv_file, 'a', newline='') as f:
                   writer = csv.DictWriter(f, fieldnames=data_row.keys())
                   if not file_exists:
                       writer.writeheader()
                   writer.writerow(data_row)
+                print("CSV Updated.")
 
               # Create Email Message
               msg = EmailMessage()

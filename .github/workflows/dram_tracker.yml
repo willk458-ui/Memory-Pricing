@@ -26,7 +26,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_PASS: ${{ secrets.EMAIL_PASS }}
-          RECIPIENT_EMAIL: "william.kerwin@morningstar.com"
+          RECIPIENT_EMAILS: "william.kerwin@morningstar.com, JingJie.Yu@morningstar.com"
         run: |
           python - <<EOF
           import os
@@ -111,14 +111,14 @@ jobs:
               msg.set_content(report_body)
               msg['Subject'] = f'DRAMeXchange Intelligence Report: {today_str}'
               msg['From'] = os.environ["EMAIL_USER"]
-              msg['To'] = os.environ["RECIPIENT_EMAIL"]
+              msg['To'] = os.environ["RECIPIENT_EMAILS"]
 
               # Send via SMTP
               with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
                   smtp.login(os.environ["EMAIL_USER"], os.environ["EMAIL_PASS"])
                   smtp.send_message(msg)
               
-              print(f"SUCCESS: Report for {today_str} sent to {os.environ['RECIPIENT_EMAIL']}")
+              print(f"SUCCESS: Report for {today_str} sent to {os.environ['RECIPIENT_EMAILS']}")
 
           except Exception as e:
               print(f"CRITICAL ERROR: {e}")
